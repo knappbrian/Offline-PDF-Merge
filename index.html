@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Merge</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #f5f5f4;
+      --surface: #ffffff;
+      --border: #e2e2e0;
+      --muted: #a8a29e;
+      --text: #1c1917;
+      --sub: #78716c;
+      --accent: #2563eb;
+      --r: 8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 56px 20px 80px;
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
+      margin-bottom: 32px;
+    }
+
+    /* cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      margin-bottom: 8px;
+    }
+
+    .card-inner {
+      padding: 18px 20px;
+    }
+
+    .card-head {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--sub);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* drop zone */
+    #drop {
+      border: 1.5px dashed var(--border);
+      border-radius: calc(var(--r) - 2px);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s;
+    }
+
+    #drop:hover,
+    #drop.over {
+      border-color: var(--accent);
+      background: #eff6ff;
+    }
+
+    .drop-icon {
+      font-size: 32px;
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .drop-label {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 3px;
+    }
+
+    .drop-sub {
+      font-size: 12px;
+      color: var(--sub);
+    }
+
+    .drop-sub a {
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .drop-sub a:hover {
+      text-decoration: underline;
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    /* file list */
+    #list {
+      list-style: none;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 14px 1fr auto 20px;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      cursor: grab;
+    }
+
+    .row:last-child {
+      border-bottom: none;
+    }
+
+    .row.dragging {
+      opacity: 0.25;
+    }
+
+    .row.above {
+      box-shadow: inset 0 2px 0 0 var(--accent);
+    }
+
+    .grip {
+      color: var(--muted);
+      font-size: 13px;
+      user-select: none;
+    }
+
+    .fname {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fmeta {
+      font-size: 11px;
+      color: var(--sub);
+      margin-top: 1px;
+    }
+
+    .fpages {
+      color: var(--accent);
+    }
+
+    .pgrange {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .pgrange span {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    input.pg {
+      width: 42px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 12px;
+      color: var(--text);
+      padding: 3px 5px;
+      text-align: center;
+      outline: none;
+      background: var(--bg);
+    }
+
+    input.pg:focus {
+      border-color: var(--accent);
+    }
+
+    input.pg::-webkit-outer-spin-button,
+    input.pg::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+    }
+
+    .rmv {
+      border: none;
+      background: none;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px;
+      border-radius: 4px;
+    }
+
+    .rmv:hover {
+      color: #dc2626;
+    }
+
+    .list-foot {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 6px;
+    }
+
+    /* settings */
+    .opts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 480px) {
+      .opts {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--sub);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .field input[type=text] {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text);
+      padding: 7px 10px;
+      outline: none;
+      background: var(--bg);
+      width: 100%;
+    }
+
+    .field input[type=text]:focus {
+      border-color: var(--accent);
+      background: #fff;
+    }
+
+    .field input[type=text]::placeholder {
+      color: var(--muted);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+
+    .toggle-text {
+      font-size: 13px;
+    }
+
+    .toggle-note {
+      font-size: 11px;
+      color: var(--sub);
+    }
+
+    .sw {
+      position: relative;
+      display: inline-block;
+      width: 32px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    .sw input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .sw-t {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .sw-t::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+      transition: transform 0.15s;
+    }
+
+    .sw input:checked+.sw-t {
+      background: var(--accent);
+    }
+
+    .sw input:checked+.sw-t::after {
+      transform: translateX(14px);
+    }
+
+    /* progress */
+    #prog {
+      display: none;
+      margin-bottom: 8px;
+      padding: 0 2px;
+    }
+
+    .ptrack {
+      background: var(--border);
+      border-radius: 999px;
+      height: 3px;
+      overflow: hidden;
+    }
+
+    .pfill {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      border-radius: 999px;
+      transition: width 0.2s ease;
+    }
+
+    .ptext {
+      font-size: 12px;
+      color: var(--sub);
+      margin-top: 6px;
+    }
+
+    /* result */
+    #result {
+      display: none;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: var(--r);
+      padding: 14px 18px;
+      margin-bottom: 8px;
+    }
+
+    .result-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .rname {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .rmeta {
+      font-size: 12px;
+      color: var(--sub);
+      margin-top: 2px;
+    }
+
+    /* buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 7px 14px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background 0.1s, border-color 0.1s;
+    }
+
+    .btn:active {
+      opacity: 0.75;
+    }
+
+    .btn-blue {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn-blue:hover {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+    }
+
+    .btn-blue:disabled {
+      background: var(--border);
+      border-color: var(--border);
+      color: var(--muted);
+      cursor: not-allowed;
+    }
+
+    .btn-plain {
+      background: var(--surface);
+      color: var(--sub);
+      border-color: var(--border);
+    }
+
+    .btn-plain:hover {
+      color: var(--text);
+      border-color: var(--muted);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--sub);
+      border-color: transparent;
+    }
+
+    .btn-ghost:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .btn-red-ghost {
+      background: transparent;
+      color: #dc2626;
+      border-color: transparent;
+    }
+
+    .btn-red-ghost:hover {
+      background: #fef2f2;
+    }
+
+    .actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    /* toast */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(52px);
+      background: var(--text);
+      color: #fff;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 13px;
+      pointer-events: none;
+      z-index: 999;
+      transition: transform 0.2s ease;
+      white-space: nowrap;
+    }
+
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+
+    <h1>PDF Merge</h1>
+
+    <div class="card">
+      <div class="card-inner">
+        <div id="drop" onclick="fileInput.click()">
+          <span class="drop-icon">📂</span>
+          <div class="drop-label">Drop PDFs here</div>
+          <div class="drop-sub">or <a onclick="event.stopPropagation(); fileInput.click()">browse files</a></div>
+        </div>
+        <input type="file" id="fileInput" multiple accept="application/pdf">
+      </div>
+    </div>
+
+    <div class="card" id="qCard" style="display:none">
+      <div class="card-head">
+        <span id="qLabel">Files</span>
+        <span style="font-size:12px; color: var(--muted)">Drag to reorder</span>
+      </div>
+      <ul id="list"></ul>
+      <div class="list-foot">
+        <button class="btn btn-plain" onclick="fileInput.click()">Add more</button>
+        <button class="btn btn-red-ghost" onclick="clearAll()">Clear</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-inner">
+        <div class="opts">
+
+          <div class="field">
+            <label for="outName">Filename</label>
+            <input type="text" id="outName" placeholder="merged" value="merged">
+          </div>
+
+          <div class="field">
+            <label for="metaTitle">Title</label>
+            <input type="text" id="metaTitle" placeholder="Optional">
+          </div>
+
+          <div class="field" style="grid-column: 1 / -1">
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-text">Compress output</div>
+                <div class="toggle-note">Smaller file where possible</div>
+              </div>
+              <label class="sw">
+                <input type="checkbox" id="chkCompress" checked>
+                <span class="sw-t"></span>
+              </label>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div id="prog">
+      <div class="ptrack">
+        <div class="pfill" id="pfill"></div>
+      </div>
+      <div class="ptext" id="ptext"></div>
+    </div>
+
+    <div id="result">
+      <div class="result-row">
+        <div>
+          <div class="rname" id="rname"></div>
+          <div class="rmeta" id="rmeta"></div>
+        </div>
+        <a id="dl" class="btn btn-blue" download="merged.pdf">Download</a>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-blue" id="btnMerge" onclick="run()" disabled>Merge</button>
+      <button class="btn btn-ghost" onclick="reset()">Reset</button>
+    </div>
+
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="pdf-lib.min.js"></script>
+  <script>
+    let q = [], dragI = null;
+
+    // drop zone
+    const drop = document.getElementById('drop');
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+    drop.addEventListener('drop', e => {
+      e.preventDefault();
+      drop.classList.remove('over');
+      const pdfs = [...e.dataTransfer.files].filter(f => f.type === 'application/pdf');
+      if (pdfs.length) add(pdfs); else toast('No PDFs there.');
+    });
+
+    const fileInput = document.getElementById('fileInput');
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) add([...fileInput.files]);
+      fileInput.value = '';
+    });
+
+    async function add(files) {
+      for (const f of files)
+        q.push({ file: f, start: 1, end: await numPages(f), pages: await numPages(f) });
+      render();
+      toast(files.length === 1 ? `${files[0].name} added.` : `${files.length} files added.`);
+    }
+
+    async function numPages(file) {
+      try {
+        const pdf = await PDFLib.PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+        return pdf.getPageCount();
+      } catch { return 1; }
+    }
+
+    function del(i) { q.splice(i, 1); render(); }
+    function clearAll() { q = []; render(); reset(); toast('Cleared.'); }
+
+    function render() {
+      const n = q.length;
+      document.getElementById('qLabel').textContent = n === 1 ? '1 file' : `${n} files`;
+      document.getElementById('btnMerge').disabled = n < 2;
+      document.getElementById('qCard').style.display = n ? '' : 'none';
+
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      q.forEach((item, i) => {
+        const p = item.pages;
+        const kb = (item.file.size / 1024).toFixed(0);
+        const li = document.createElement('li');
+        li.className = 'row';
+        li.draggable = true;
+        li.innerHTML = `
+      <span class="grip">⠿</span>
+      <div>
+        <div class="fname" title="${esc(item.file.name)}">${esc(item.file.name)}</div>
+        <div class="fmeta">${kb} KB · <span class="fpages">${p} pg</span></div>
+      </div>
+      <div class="pgrange">
+        <span>pp</span>
+        <input class="pg" type="number" id="s${i}" value="${item.start}" min="1" max="${p}">
+        <span>–</span>
+        <input class="pg" type="number" id="e${i}" value="${item.end}" min="1" max="${p}">
+      </div>
+      <button class="rmv" onclick="del(${i})">×</button>`;
+
+        li.querySelector(`#s${i}`).oninput = e => q[i].start = Math.max(1, +e.target.value || 1);
+        li.querySelector(`#e${i}`).oninput = e => q[i].end = Math.min(p, +e.target.value || p);
+
+        li.addEventListener('dragstart', () => { dragI = i; setTimeout(() => li.classList.add('dragging'), 0); });
+        li.addEventListener('dragend', () => li.classList.remove('dragging'));
+        li.addEventListener('dragover', e => { e.preventDefault(); li.classList.add('above'); });
+        li.addEventListener('dragleave', () => li.classList.remove('above'));
+        li.addEventListener('drop', e => {
+          e.preventDefault(); li.classList.remove('above');
+          if (dragI !== null && dragI !== i) { q.splice(i, 0, q.splice(dragI, 1)[0]); render(); }
+          dragI = null;
+        });
+        list.appendChild(li);
+      });
+    }
+
+    async function run() {
+      if (q.length < 2) return;
+      const out = (() => { const n = document.getElementById('outName').value.trim() || 'merged'; return n.endsWith('.pdf') ? n : n + '.pdf'; })();
+      const title = document.getElementById('metaTitle').value.trim();
+      const compress = document.getElementById('chkCompress').checked;
+
+      reset();
+      document.getElementById('prog').style.display = 'block';
+      document.getElementById('btnMerge').disabled = true;
+      setBar(0, '');
+
+      try {
+        const merged = await PDFLib.PDFDocument.create();
+        if (title) merged.setTitle(title);
+
+        for (let i = 0; i < q.length; i++) {
+          const item = q[i];
+          setBar(Math.round(i / q.length * 88), `${i + 1}/${q.length} — ${item.file.name}`);
+          await tick();
+
+          const src = await PDFLib.PDFDocument.load(await item.file.arrayBuffer(), { ignoreEncryption: true });
+          const total = src.getPageCount();
+          // page range is 1-indexed from user, pdf-lib wants 0-indexed
+          const from = Math.max(0, (item.start || 1) - 1);
+          const to = Math.min(total - 1, (item.end || total) - 1);
+          const idx = Array.from({ length: to - from + 1 }, (_, k) => from + k);
+          if (!idx.length) continue;
+          (await merged.copyPages(src, idx)).forEach(pg => merged.addPage(pg));
+        }
+
+        setBar(95, 'Writing…'); await tick();
+        const bytes = await merged.save({ useObjectStreams: compress });
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const total = merged.getPageCount();
+
+        setBar(100, ''); await tick();
+        document.getElementById('prog').style.display = 'none';
+        document.getElementById('rname').textContent = out;
+        document.getElementById('rmeta').textContent = `${fmt(blob.size)} · ${total} page${total !== 1 ? 's' : ''}`;
+        const dl = document.getElementById('dl');
+        dl.href = url; dl.download = out;
+        document.getElementById('result').style.display = '';
+        dl.click();
+        toast('Done.');
+      } catch (err) {
+        document.getElementById('prog').style.display = 'none';
+        console.error(err);
+        toast('Error: ' + err.message);
+      } finally {
+        document.getElementById('btnMerge').disabled = q.length < 2;
+      }
+    }
+
+    function setBar(pct, label) {
+      document.getElementById('pfill').style.width = pct + '%';
+      document.getElementById('ptext').textContent = label;
+    }
+
+    function tick() { return new Promise(r => setTimeout(r, 0)); }
+
+    function reset() {
+      ['result', 'prog'].forEach(id => document.getElementById(id).style.display = 'none');
+      const dl = document.getElementById('dl');
+      if (dl.href.startsWith('blob:')) URL.revokeObjectURL(dl.href);
+      dl.href = '#';
+    }
+
+    function fmt(n) {
+      return n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB';
+    }
+
+    function esc(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    let tt;
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg; el.className = 'show';
+      clearTimeout(tt); tt = setTimeout(() => el.className = '', 2800);
+    }
+  </script>
+</body>
+
+</html>
