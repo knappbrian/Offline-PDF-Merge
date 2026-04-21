@@ -1,6 +1,8 @@
 # Offline-PDF-Merge
 Offline HTML tool to merge two or more PDFs.
 
+<img width="800" height="928" alt="pdfmerge" src="https://github.com/user-attachments/assets/da3f7932-79c1-4475-a4b0-1017e3a31cb2" />
+
 # How to use:
 
 Put files in the same folder or drag and drop. Open index.html in a browser to merge.
@@ -26,7 +28,7 @@ If you want to update it:
 curl -o pdf-lib.min.js https://unpkg.com/pdf-lib/dist/pdf-lib.min.js
 ```
 
-## Things to know
+# Things to know
 
 - Needs at least 2 files to merge
 - Page ranges are inclusive `pp 2 – 5` gives you pages 2, 3, 4, and 5
